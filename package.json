@@ -1,0 +1,13 @@
+{
+  "name": "com.displayio.ads",
+  "version": "1.0.0",
+  "displayName": "display.io Ads",
+  "description": "display.io Direct SDK for Unity — interstitial, banner, infeed and in-game audio ads.",
+  "unity": "2021.3",
+  "author": {
+    "name": "display.io"
+  },
+  "documentationUrl": "https://github.com/displayio/dio-unity-sdk",
+  "changelogUrl": "https://github.com/displayio/dio-unity-sdk/blob/main/CHANGELOG.md",
+  "licensesUrl": "https://github.com/displayio/dio-unity-sdk/blob/main/LICENSE"
+}

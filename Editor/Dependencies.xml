@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Native dependencies of the display.io Unity plugin, resolved by External Dependency Manager
+  for Unity (EDM4U). The Android Resolver writes the maven coordinates into the publisher's
+  gradle files; the iOS Resolver writes the pod into their Podfile.
+
+  DIOSDK/Core rather than DIOSDK: the default "Full" subspec pulls FBAudienceNetwork, which a
+  Direct-only integration does not need.
+-->
+<dependencies>
+  <androidPackages>
+    <repositories>
+      <repository>https://maven.display.io/</repository>
+    </repositories>
+    <androidPackage spec="com.brandio.ads:sdk:5.8.0"/>
+  </androidPackages>
+
+  <iosPods>
+    <iosPod name="DIOSDK/Core" version="4.8.0"/>
+  </iosPods>
+</dependencies>
