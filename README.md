@@ -124,9 +124,3 @@ Handlers receive a `DioAdInfo` snapshot: `PlacementId`, `RequestId`, `AdUnitType
 
 The SDK reads IAB TCF consent from the app's own storage, so consent collection stays with your
 CMP. The plugin neither collects nor overrides it.
-
-## Known limitations
-
-On Android, banner and infeed ads compute their position once at `Show` and do not reposition
-on device rotation; on iOS they do. Call `Hide` and `Show` after an orientation change if your
-game supports both orientations.
