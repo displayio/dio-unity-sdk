@@ -49,6 +49,28 @@ namespace DisplayIO.Ads
         /// </summary>
         public int Size { get; set; }
 
+        /// <summary>
+        /// Look of the card — colours, corner radius, ring width, which overlay elements are
+        /// drawn, and an image of your own. Null keeps the SDK defaults.
+        /// Applied on the next Load — changing it while an ad is loaded has no effect.
+        /// </summary>
+        public DioInGameAudioStyle Style { get; set; }
+
+        /// <summary>
+        /// Whether the card is drawn at all. Set it to false to play the ad as background audio
+        /// with no UI: Show and Hide then do nothing, and <see cref="Play"/> and
+        /// <see cref="Pause"/> drive playback instead. Nothing is heard until Play is called.
+        /// Applied on the next Load.
+        /// </summary>
+        public bool ShowCard { get; set; } = true;
+
+        /// <summary>
+        /// Whether the campaign's companion image may be shown inside the card. Set it to false
+        /// and the SDK does not even load the companion, leaving the card on its background.
+        /// Applied on the next Load, because the companion is resolved while the bid is parsed.
+        /// </summary>
+        public bool CompanionEnabled { get; set; } = true;
+
         public event Action<DioAdInfo> OnLoaded;
         public event Action<DioAdInfo> OnNoFill;
         public event Action<DioAdInfo, DioError> OnLoadFailed;
@@ -78,6 +100,10 @@ namespace DisplayIO.Ads
                 {
                     placement.Call("setCustomWidth", Size);
                 }
+
+                placement.Call("setShowCard", ShowCard);
+                placement.Call("setCompanionEnabled", CompanionEnabled);
+                ApplyStyleAndroid(placement);
             };
 #elif UNITY_IOS && !UNITY_EDITOR
             DioIosBridge.RegisterInline(placementId, DioAdUnitType.InGameAudio, this);
@@ -102,6 +128,7 @@ namespace DisplayIO.Ads
 #if UNITY_ANDROID && !UNITY_EDITOR
             impl.Load();
 #elif UNITY_IOS && !UNITY_EDITOR
+            ApplyStyleIos();
             DioIosBridge.InlineLoad(PlacementId, Size);
 #else
             ((IDioInlineAdCallbacks)this).LoadFailed(
@@ -109,16 +136,32 @@ namespace DisplayIO.Ads
 #endif
         }
 
-        /// <summary>Inserts the loaded card on screen.</summary>
+        /// <summary>
+        /// Inserts the loaded card on screen. Does nothing when <see cref="ShowCard"/> is false,
+        /// because that mode has no card to insert.
+        /// </summary>
         public void Show()
         {
+            if (!ShowCard)
+            {
+                return;
+            }
+
             shown = true;
             ApplyLayout();
         }
 
-        /// <summary>Removes the card from screen. The fetched ad stays usable for another Show.</summary>
+        /// <summary>
+        /// Removes the card from screen. The fetched ad stays usable for another Show.
+        /// Does nothing when <see cref="ShowCard"/> is false.
+        /// </summary>
         public void Hide()
         {
+            if (!ShowCard)
+            {
+                return;
+            }
+
             shown = false;
 #if UNITY_ANDROID && !UNITY_EDITOR
             impl.Hide();
@@ -137,6 +180,104 @@ namespace DisplayIO.Ads
             DioIosBridge.InlineDestroy(PlacementId);
 #endif
         }
+
+        /// <summary>
+        /// Starts or resumes playback. Required when <see cref="ShowCard"/> is false, where
+        /// nothing plays on its own. With a card the SDK drives playback from viewability and
+        /// this is only needed to resume after <see cref="Pause"/>.
+        /// </summary>
+        public void Play()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            impl.CallOnAd("play");
+#elif UNITY_IOS && !UNITY_EDITOR
+            DioIosBridge.InGamePlay(PlacementId);
+#endif
+        }
+
+        /// <summary>Pauses playback. Resume with <see cref="Play"/>.</summary>
+        public void Pause()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            impl.CallOnAd("pause");
+#elif UNITY_IOS && !UNITY_EDITOR
+            DioIosBridge.InGamePause(PlacementId);
+#endif
+        }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        private void ApplyStyleAndroid(AndroidJavaObject placement)
+        {
+            if (Style == null)
+            {
+                placement.Call("setStyle", (AndroidJavaObject)null);
+                return;
+            }
+
+            using (var style = new AndroidJavaObject("com.brandio.ads.placements.InGameAudioStyle"))
+            {
+                SetColorAndroid(style, "setRingTrackColor", Style.RingTrackColor);
+                SetColorAndroid(style, "setRingProgressColor", Style.RingProgressColor);
+                SetColorAndroid(style, "setAccentColor", Style.AccentColor);
+                SetColorAndroid(style, "setBadgeBackgroundColor", Style.BadgeBackgroundColor);
+                SetColorAndroid(style, "setBadgeTextColor", Style.BadgeTextColor);
+
+                // setBackgroundColors takes both ends at once, so it cannot reuse the helper.
+                if (Style.BackgroundTopLeft.HasValue || Style.BackgroundBottomRight.HasValue)
+                {
+                    style.Call("setBackgroundColors",
+                        BoxedColorAndroid(Style.BackgroundTopLeft),
+                        BoxedColorAndroid(Style.BackgroundBottomRight));
+                }
+
+                style.Call("setCornerRadiusDp", Style.CornerRadius);
+                style.Call("setRingWidthDp", Style.RingWidth);
+                style.Call("setShowProgressRing", Style.ShowProgressRing);
+                style.Call("setShowAdBadge", Style.ShowAdBadge);
+                style.Call("setShowNowPlayingGlyph", Style.ShowNowPlayingGlyph);
+                style.Call("setIconPaddingDp", Style.IconPadding);
+
+                byte[] icon = Style.ResolveIconBytes(out string iconError);
+
+                if (iconError != null)
+                {
+                    // No event expresses this: the ad itself is fine, only the decoration is
+                    // missing, and it is a project setup mistake the publisher has to see.
+                    Debug.LogError(iconError);
+                }
+
+                if (icon != null)
+                {
+                    style.Call("setIcon", icon);
+                }
+
+                placement.Call("setStyle", style);
+            }
+        }
+
+        private static void SetColorAndroid(
+            AndroidJavaObject style, string setter, Color? color)
+        {
+            if (color.HasValue)
+            {
+                style.Call(setter, BoxedColorAndroid(color));
+            }
+        }
+
+        /// <summary>
+        /// Wraps a colour as java.lang.Integer, which is what the SDK's nullable colour setters
+        /// take — a C# int would bind to the primitive overload and lose the "unset" meaning.
+        /// </summary>
+        private static AndroidJavaObject BoxedColorAndroid(Color? color)
+        {
+            if (!color.HasValue)
+            {
+                return null;
+            }
+
+            return new AndroidJavaObject("java.lang.Integer", (int)DioInGameAudioStyle.Packed(color));
+        }
+#endif
 
         private void ApplyLayoutIfShown()
         {
@@ -162,6 +303,43 @@ namespace DisplayIO.Ads
                 new DioError("display.io ads are only available on Android"));
 #endif
         }
+
+#if UNITY_IOS && !UNITY_EDITOR
+        private void ApplyStyleIos()
+        {
+            DioInGameAudioStyle style = Style ?? new DioInGameAudioStyle();
+
+            DioIosBridge.InGameSetOptions(
+                PlacementId, ShowCard, CompanionEnabled,
+                DioInGameAudioStyle.Packed(style.BackgroundTopLeft),
+                DioInGameAudioStyle.Packed(style.BackgroundBottomRight),
+                DioInGameAudioStyle.Packed(style.RingTrackColor),
+                DioInGameAudioStyle.Packed(style.RingProgressColor),
+                DioInGameAudioStyle.Packed(style.AccentColor),
+                DioInGameAudioStyle.Packed(style.BadgeBackgroundColor),
+                DioInGameAudioStyle.Packed(style.BadgeTextColor),
+                style.CornerRadius, style.RingWidth,
+                style.ShowProgressRing, style.ShowAdBadge, style.ShowNowPlayingGlyph,
+                style.IconPadding);
+
+            if (Style == null)
+            {
+                DioIosBridge.InGameSetIcon(PlacementId, null, 0);
+                return;
+            }
+
+            byte[] icon = Style.ResolveIconBytes(out string iconError);
+
+            if (iconError != null)
+            {
+                // No event expresses this: the ad itself is fine, only the decoration is
+                // missing, and it is a project setup mistake the publisher has to see.
+                Debug.LogError(iconError);
+            }
+
+            DioIosBridge.InGameSetIcon(PlacementId, icon, icon?.Length ?? 0);
+        }
+#endif
 
         void IDioInlineAdCallbacks.Loaded(DioAdInfo ad) => OnLoaded?.Invoke(ad);
 

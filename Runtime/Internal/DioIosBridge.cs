@@ -67,6 +67,19 @@ namespace DisplayIO.Ads.Internal
         [DllImport("__Internal")] private static extern void dioInlineHide(string placementId);
         [DllImport("__Internal")] private static extern void dioInlineDestroy(string placementId);
 
+        [DllImport("__Internal")] private static extern void dioInGameSetOptions(
+            string placementId, bool showCard, bool companionEnabled,
+            long backgroundTopLeft, long backgroundBottomRight,
+            long ringTrack, long ringProgress, long accent,
+            long badgeBackground, long badgeText,
+            int cornerRadius, int ringWidth,
+            bool showProgressRing, bool showAdBadge, bool showNowPlayingGlyph,
+            int iconPadding);
+        [DllImport("__Internal")] private static extern void dioInGameSetIcon(
+            string placementId, byte[] bytes, int length);
+        [DllImport("__Internal")] private static extern void dioInGamePlay(string placementId);
+        [DllImport("__Internal")] private static extern void dioInGamePause(string placementId);
+
         private static Action onInit;
         private static Action<DioError> onInitError;
         private static IDioInterstitialCallbacks interstitial;
@@ -143,6 +156,33 @@ namespace DisplayIO.Ads.Internal
             dioInlineShow(placementId, (int)position, offset.x, offset.y, (int)safeArea);
 
         internal static void InlineHide(string placementId) => dioInlineHide(placementId);
+
+        /// <summary>
+        /// Stashes the in-game audio options for a placement. Applied natively when the ad is
+        /// requested, because the companion is resolved while the bid is parsed.
+        /// Colours are 0xAARRGGBB, or -1 for "leave the SDK default".
+        /// </summary>
+        internal static void InGameSetOptions(
+            string placementId, bool showCard, bool companionEnabled,
+            long backgroundTopLeft, long backgroundBottomRight,
+            long ringTrack, long ringProgress, long accent,
+            long badgeBackground, long badgeText,
+            int cornerRadius, int ringWidth,
+            bool showProgressRing, bool showAdBadge, bool showNowPlayingGlyph,
+            int iconPadding) =>
+            dioInGameSetOptions(placementId, showCard, companionEnabled,
+                backgroundTopLeft, backgroundBottomRight,
+                ringTrack, ringProgress, accent, badgeBackground, badgeText,
+                cornerRadius, ringWidth,
+                showProgressRing, showAdBadge, showNowPlayingGlyph, iconPadding);
+
+        /// <summary>Stashes the card image for a placement. Null bytes clear it.</summary>
+        internal static void InGameSetIcon(string placementId, byte[] bytes, int length) =>
+            dioInGameSetIcon(placementId, bytes, length);
+
+        internal static void InGamePlay(string placementId) => dioInGamePlay(placementId);
+
+        internal static void InGamePause(string placementId) => dioInGamePause(placementId);
 
         internal static void InlineDestroy(string placementId)
         {

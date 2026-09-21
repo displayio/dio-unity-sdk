@@ -1,6 +1,6 @@
 {
   "name": "com.displayio.ads",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "displayName": "display.io Ads",
   "description": "display.io Direct SDK for Unity — interstitial, banner, infeed and in-game audio ads.",
   "unity": "2021.3",

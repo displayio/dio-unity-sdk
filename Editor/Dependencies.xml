@@ -12,10 +12,10 @@
     <repositories>
       <repository>https://maven.display.io/</repository>
     </repositories>
-    <androidPackage spec="com.brandio.ads:sdk:5.8.0"/>
+    <androidPackage spec="com.brandio.ads:sdk:5.8.1"/>
   </androidPackages>
 
   <iosPods>
-    <iosPod name="DIOSDK/Core" version="4.8.0"/>
+    <iosPod name="DIOSDK/Core" version="4.8.1"/>
   </iosPods>
 </dependencies>

@@ -81,6 +81,38 @@ static NSMutableDictionary<NSString *, DIOAd *> *gInlineAds(void) {
     return store;
 }
 
+/// In-game audio options, stashed per placement by dioInGameSetOptions / dioInGameSetIcon and
+/// applied in dioInlineLoad. They cannot be applied when they are set: the placement is only
+/// resolved at load time, and the companion flag is read while the bid is parsed.
+static NSMutableDictionary<NSString *, NSDictionary *> *gInGameOptions(void) {
+    static NSMutableDictionary *store = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ store = [NSMutableDictionary dictionary]; });
+    return store;
+}
+
+static NSMutableDictionary<NSString *, NSData *> *gInGameIcons(void) {
+    static NSMutableDictionary *store = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ store = [NSMutableDictionary dictionary]; });
+    return store;
+}
+
+/// Unpacks 0xAARRGGBB. Negative means "not set" — 0 cannot be the sentinel because it is a
+/// legitimate transparent black.
+static UIColor *DioColorFromPacked(long long packed) {
+    if (packed < 0) {
+        return nil;
+    }
+
+    CGFloat a = ((packed >> 24) & 0xFF) / 255.0;
+    CGFloat r = ((packed >> 16) & 0xFF) / 255.0;
+    CGFloat g = ((packed >> 8) & 0xFF) / 255.0;
+    CGFloat b = (packed & 0xFF) / 255.0;
+
+    return [UIColor colorWithRed:r green:g blue:b alpha:a];
+}
+
 static NSMutableDictionary<NSString *, NSArray<NSLayoutConstraint *> *> *gConstraints(void) {
     static NSMutableDictionary *store = nil;
     static dispatch_once_t once;
@@ -347,8 +379,42 @@ void dioInlineLoad(const char *placementIdRaw, int customSize) {
         return;
     }
 
-    if (customSize > 0 && [placement isKindOfClass:[DIOInGameAudioPlacement class]]) {
-        ((DIOInGameAudioPlacement *)placement).customWidth = customSize;
+    if ([placement isKindOfClass:[DIOInGameAudioPlacement class]]) {
+        DIOInGameAudioPlacement *inGame = (DIOInGameAudioPlacement *)placement;
+
+        if (customSize > 0) {
+            inGame.customWidth = customSize;
+        }
+
+        NSDictionary *options = gInGameOptions()[placementId];
+
+        if (options != nil) {
+            inGame.showCard = [options[@"showCard"] boolValue];
+            inGame.companionEnabled = [options[@"companionEnabled"] boolValue];
+
+            DIOInGameAudioStyle *style = [[DIOInGameAudioStyle alloc] init];
+            style.backgroundColorTopLeft = DioColorFromPacked([options[@"bgTopLeft"] longLongValue]);
+            style.backgroundColorBottomRight = DioColorFromPacked([options[@"bgBottomRight"] longLongValue]);
+            style.ringTrackColor = DioColorFromPacked([options[@"ringTrack"] longLongValue]);
+            style.ringProgressColor = DioColorFromPacked([options[@"ringProgress"] longLongValue]);
+            style.accentColor = DioColorFromPacked([options[@"accent"] longLongValue]);
+            style.badgeBackgroundColor = DioColorFromPacked([options[@"badgeBackground"] longLongValue]);
+            style.badgeTextColor = DioColorFromPacked([options[@"badgeText"] longLongValue]);
+            style.cornerRadius = [options[@"cornerRadius"] doubleValue];
+            style.ringWidth = [options[@"ringWidth"] doubleValue];
+            style.showProgressRing = [options[@"showProgressRing"] boolValue];
+            style.showAdBadge = [options[@"showAdBadge"] boolValue];
+            style.showNowPlayingGlyph = [options[@"showNowPlayingGlyph"] boolValue];
+            style.iconPadding = [options[@"iconPadding"] doubleValue];
+
+            NSData *icon = gInGameIcons()[placementId];
+
+            if (icon != nil) {
+                style.iconData = icon;
+            }
+
+            inGame.style = style;
+        }
     }
 
     DIOAdRequest *request = [placement newAdRequest];
@@ -455,6 +521,64 @@ void dioInlineDestroy(const char *placementIdRaw) {
         [[ad view] removeFromSuperview];
         [ad finish];
     });
+}
+
+// ---------- in-game audio: options, image and playback ----------
+
+void dioInGameSetOptions(const char *placementIdRaw, bool showCard, bool companionEnabled,
+                         long long backgroundTopLeft, long long backgroundBottomRight,
+                         long long ringTrack, long long ringProgress, long long accent,
+                         long long badgeBackground, long long badgeText,
+                         int cornerRadius, int ringWidth,
+                         bool showProgressRing, bool showAdBadge, bool showNowPlayingGlyph,
+                         int iconPadding) {
+    NSString *placementId = DioString(placementIdRaw);
+
+    gInGameOptions()[placementId] = @{
+        @"showCard": @(showCard),
+        @"companionEnabled": @(companionEnabled),
+        @"bgTopLeft": @(backgroundTopLeft),
+        @"bgBottomRight": @(backgroundBottomRight),
+        @"ringTrack": @(ringTrack),
+        @"ringProgress": @(ringProgress),
+        @"accent": @(accent),
+        @"badgeBackground": @(badgeBackground),
+        @"badgeText": @(badgeText),
+        @"cornerRadius": @(cornerRadius),
+        @"ringWidth": @(ringWidth),
+        @"showProgressRing": @(showProgressRing),
+        @"showAdBadge": @(showAdBadge),
+        @"showNowPlayingGlyph": @(showNowPlayingGlyph),
+        @"iconPadding": @(iconPadding),
+    };
+}
+
+void dioInGameSetIcon(const char *placementIdRaw, const unsigned char *bytes, int length) {
+    NSString *placementId = DioString(placementIdRaw);
+
+    if (bytes == NULL || length <= 0) {
+        [gInGameIcons() removeObjectForKey:placementId];
+        return;
+    }
+
+    // Copied, not referenced: the buffer belongs to the C# marshaller and is gone after the call.
+    gInGameIcons()[placementId] = [NSData dataWithBytes:bytes length:(NSUInteger)length];
+}
+
+void dioInGamePlay(const char *placementIdRaw) {
+    DIOAd *ad = gInlineAds()[DioString(placementIdRaw)];
+
+    if ([ad isKindOfClass:[DIOInGameAudio class]]) {
+        [(DIOInGameAudio *)ad play];
+    }
+}
+
+void dioInGamePause(const char *placementIdRaw) {
+    DIOAd *ad = gInlineAds()[DioString(placementIdRaw)];
+
+    if ([ad isKindOfClass:[DIOInGameAudio class]]) {
+        [(DIOInGameAudio *)ad pause];
+    }
 }
 
 }

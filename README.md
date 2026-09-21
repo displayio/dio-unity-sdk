@@ -94,12 +94,98 @@ while still avoiding side cutouts.
 
 Changing `Position`, `Offset` or `SafeArea` while the ad is on screen moves it immediately.
 
-In-game audio adds one property:
+In-game audio adds a size, a look, and a mode with no card at all:
 
 ```csharp
 var audio = DioAds.InGameAudio.Create("PLACEMENT_ID");
 audio.Size = 120;   // side of the square card, applied on the next Load
 ```
+
+### Styling the card
+
+Assign a `DioInGameAudioStyle` before `Load`. Every colour is optional — leave one unset and the
+SDK keeps its own default.
+
+```csharp
+audio.Style = new DioInGameAudioStyle
+{
+    BackgroundTopLeft = new Color32(0x7B, 0x2F, 0xF7, 0xFF),
+    BackgroundBottomRight = new Color32(0xF1, 0x07, 0xA3, 0xFF),
+    AccentColor = Color.yellow,          // audio bars, now-playing glyph and progress ring
+    BadgeBackgroundColor = Color.yellow,
+    BadgeTextColor = Color.black,
+    CornerRadius = 20,
+    RingWidth = 4,
+};
+audio.Load();
+```
+
+Individual elements can be switched off:
+
+```csharp
+audio.Style = new DioInGameAudioStyle
+{
+    ShowAdBadge = false,
+    ShowNowPlayingGlyph = false,
+    ShowProgressRing = false,
+};
+```
+
+### Your own image in the card
+
+The image fills the card's content inset by `IconPadding`, with the background showing through
+the gap, and replaces the default audio bars. It is decorative — it takes no touches, so the
+whole card stays clickable.
+
+```csharp
+audio.Style = new DioInGameAudioStyle
+{
+    Icon = brandMarkTexture,   // Texture2D, must be readable
+    IconPadding = 12,
+};
+```
+
+**The texture has to be readable.** Tick *Read/Write Enabled* on its import settings, or build it
+in code with `new Texture2D(...)`. An unreadable texture cannot be encoded, so the card falls
+back to the default bars and the reason is logged; the ad itself still loads and plays normally.
+
+When the image already exists as PNG or JPEG bytes — loaded from disk or downloaded — pass those
+instead and skip both the encode and the readability requirement:
+
+```csharp
+audio.Style = new DioInGameAudioStyle { IconBytes = pngBytes };
+```
+
+### The campaign's companion
+
+When the campaign carries a companion image, it is shown inside the card instead of your
+background and image — the advertiser's creative always wins. Turn it off and the SDK does not
+even load it:
+
+```csharp
+audio.CompanionEnabled = false;
+```
+
+### Playing without a card
+
+Some games have nowhere to put a card but can still carry a sponsored audio track. Turning the
+card off keeps the audio and drops the UI entirely:
+
+```csharp
+audio.ShowCard = false;
+audio.Load();
+
+// nothing is heard until you start it
+audio.Play();
+
+// later, for example when the player opens a menu
+audio.Pause();
+```
+
+In this mode `Show` and `Hide` do nothing — there is no card to insert. The impression is counted
+when playback actually starts rather than on viewability, and the SDK closes the ad by itself
+when the track ends. `Play` and `Pause` also work with a card on screen, where the SDK otherwise
+drives playback from viewability.
 
 ## Events
 

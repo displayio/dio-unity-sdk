@@ -155,6 +155,36 @@ namespace DisplayIO.Ads.Internal
         /// Detaches the ad view and removes the wrapper from the activity content view.
         /// Nothing of ours is left overlaying the app.
         /// </summary>
+        /// <summary>
+        /// Calls a no-argument method on the loaded ad, on the Android UI thread. Used for the
+        /// in-game audio play/pause controls; a no-op when nothing is loaded.
+        /// </summary>
+        internal void CallOnAd(string method)
+        {
+            lock (gate)
+            {
+                if (ad == null)
+                {
+                    return;
+                }
+            }
+
+            AndroidJavaObject activity = DioAndroidBridge.GetActivity();
+
+            activity.Call("runOnUiThread", new AndroidJavaRunnable(() =>
+            {
+                lock (gate)
+                {
+                    if (ad == null)
+                    {
+                        return;
+                    }
+
+                    ad.Call(method);
+                }
+            }));
+        }
+
         internal void Hide()
         {
             lock (gate)
