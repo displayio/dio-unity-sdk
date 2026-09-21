@@ -7,7 +7,7 @@ Unity plugin for the display.io Direct SDK: interstitial, banner, infeed and in-
 In Unity, open **Window → Package Manager → + → Add package from git URL** and enter:
 
 ```
-https://github.com/displayio/dio-unity-sdk.git#1.0.0
+https://github.com/displayio/dio-unity-sdk.git#1.0.1
 ```
 
 Native dependencies are declared by the package and installed by **External Dependency Manager
